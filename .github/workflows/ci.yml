@@ -17,10 +17,12 @@ jobs:
 
       - name: Log in to Amazon ECR
         uses: aws-actions/amazon-ecr-login@v2
+        with:
+          aws-region: ap-southeast-2
 
       - name: Build and push to ECR
         env:
-          AWS_REGION: ap-southeast-2   # ubah sesuai region kamu
+          AWS_REGION: ap-southeast-2
           ECR_REPOSITORY: fiber-backend
         run: |
           IMAGE_TAG=${GITHUB_SHA::7}
