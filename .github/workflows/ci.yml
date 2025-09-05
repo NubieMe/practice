@@ -42,3 +42,11 @@ jobs:
 
           docker tag $ECR_REPOSITORY:$IMAGE_TAG $REGISTRY/$ECR_REPOSITORY:latest
           docker push $REGISTRY/$ECR_REPOSITORY:latest
+
+      - name: Deploy to ECS
+        run: |
+          aws ecs update-service \
+            --cluster fiber-cluster \
+            --service fiber-service \
+            --force-new-deployment \
+            --region ap-southeast-2
