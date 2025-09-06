@@ -1,11 +1,11 @@
-name: CI/CD
+name: CI/CD to EC2 via ECR
 
 on:
   push:
     branches: ["main"]
 
 jobs:
-  build-and-push:
+  build-and-deploy:
     runs-on: ubuntu-latest
 
     steps:
@@ -28,25 +28,32 @@ jobs:
           aws ecr describe-repositories --repository-names fiber-backend --region ap-southeast-2 || \
           aws ecr create-repository --repository-name fiber-backend --region ap-southeast-2
 
-      - name: Build and push to ECR
+      - name: Build and push Docker image to ECR
         env:
           ECR_REPOSITORY: fiber-backend
-          IMAGE_TAG: ${{ github.sha }}
         run: |
-          REGISTRY=${{ steps.login-ecr.outputs.registry }}
-
+          IMAGE_TAG=latest
           docker build -t $ECR_REPOSITORY:$IMAGE_TAG .
+          docker tag $ECR_REPOSITORY:$IMAGE_TAG ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
+          docker push ${{ steps.login-ecr.outputs.registry }}/$ECR_REPOSITORY:$IMAGE_TAG
 
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-          docker push $REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
-
-          docker tag $ECR_REPOSITORY:$IMAGE_TAG $REGISTRY/$ECR_REPOSITORY:latest
-          docker push $REGISTRY/$ECR_REPOSITORY:latest
-
-      - name: Deploy to ECS
-        run: |
-          aws ecs update-service \
-            --cluster fiber-cluster \
-            --service fiber-service \
-            --force-new-deployment \
-            --region ap-southeast-2
+      - name: Deploy on EC2
+        uses: appleboy/ssh-action@v0.1.10
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            aws ecr get-login-password --region ap-southeast-2 | docker login --username AWS --password-stdin ${{ steps.login-ecr.outputs.registry }}
+            cd ~/app || mkdir ~/app && cd ~/app
+            echo '
+            version: "3.8"
+            services:
+              fiber-app:
+                image: ${{ steps.login-ecr.outputs.registry }}/fiber-backend:latest
+                ports:
+                  - "80:3000"
+                restart: always
+            ' > docker-compose.yml
+            docker-compose pull
+            docker-compose up -d
