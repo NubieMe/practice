@@ -55,5 +55,5 @@ jobs:
                   - "3000:3000"
                 restart: always
             ' > docker-compose.yml
-            docker-compose pull
-            docker-compose up -d
+            docker compose pull
+            docker compose up -d
